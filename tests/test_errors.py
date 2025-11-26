@@ -5,15 +5,30 @@ from app.main import app
 client = TestClient(app)
 
 
-def test_not_found_item():
-    r = client.get("/items/999")
-    assert r.status_code == 404
-    body = r.json()
-    assert "error" in body and body["error"]["code"] == "not_found"
+def test_create_deck_success():
+    payload = {
+        "title": "My first deck",
+        "description": "Basics",
+        "source_lang": "EN",
+        "target_lang": "RU",
+    }
+    response = client.post("/api/v1/decks", json=payload)
+    assert response.status_code == 201
+    body = response.json()
+    assert "deck" in body
+    deck = body["deck"]
+    assert deck["title"] == payload["title"]
+    assert deck["source_lang"] == "en"
+    assert deck["target_lang"] == "ru"
 
 
-def test_validation_error():
-    r = client.post("/items", params={"name": ""})
-    assert r.status_code == 422
-    body = r.json()
+def test_create_deck_validation_error():
+    payload = {
+        "title": "",
+        "source_lang": "e",
+        "target_lang": "ru",
+    }
+    response = client.post("/api/v1/decks", json=payload)
+    assert response.status_code == 422
+    body = response.json()
     assert body["error"]["code"] == "validation_error"
