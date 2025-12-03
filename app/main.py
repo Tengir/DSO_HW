@@ -7,8 +7,9 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, constr
+
+from app.errors import problem_response
 
 app = FastAPI(title="SecDev Course App", version="0.1.0")
 
@@ -22,32 +23,39 @@ class ApiError(Exception):
 
 @app.exception_handler(ApiError)
 async def api_error_handler(request: Request, exc: ApiError):
-    return JSONResponse(
+    return problem_response(
+        request=request,
         status_code=exc.status,
-        content={"error": {"code": exc.code, "message": exc.message}},
+        title="Application error",
+        detail=exc.message,
+        type_=f"error:{exc.code}",
+        code=exc.code,
     )
 
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     detail = exc.detail if isinstance(exc.detail, str) else "http_error"
-    return JSONResponse(
+    return problem_response(
+        request=request,
         status_code=exc.status_code,
-        content={"error": {"code": "http_error", "message": detail}},
+        title="HTTP error",
+        detail=detail,
+        type_="about:blank",
+        code="http_error",
     )
 
 
 @app.exception_handler(RequestValidationError)
 async def request_validation_handler(request: Request, exc: RequestValidationError):
-    return JSONResponse(
+    return problem_response(
+        request=request,
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={
-            "error": {
-                "code": "validation_error",
-                "message": "payload validation failed",
-                "details": exc.errors(),
-            }
-        },
+        title="Validation error",
+        detail="payload validation failed",
+        type_="about:blank",
+        code="validation_error",
+        extra={"details": exc.errors()},
     )
 
 
