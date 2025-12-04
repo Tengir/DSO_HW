@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Iterable, Tuple
 
@@ -46,6 +47,12 @@ def _validate_filename(filename: str) -> None:
     # На Windows `os.path.isabs("/etc/passwd")` вернёт False, поэтому дополнительно
     # отмечаем пути, начинающиеся с "/" или "\" как потенциально абсолютные.
     if os.path.isabs(filename) or filename.startswith(("/", "\\")):
+        raise SecureUploadError("filename cannot be an absolute path")
+
+    # Windows absolute path pattern, e.g. "C:\\Windows\\System32" or "C:/Windows/System32"
+    # На Linux `os.path.isabs("C:\\Windows")` вернёт False, поэтому проверяем по паттерну
+    WINDOWS_ABS_PATH_RE = re.compile(r"^[a-zA-Z]:[\\/]")
+    if WINDOWS_ABS_PATH_RE.match(filename):
         raise SecureUploadError("filename cannot be an absolute path")
 
     # Нормализуем путь и проверяем, что он не выходит за границы
