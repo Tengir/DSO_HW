@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -7,9 +8,11 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, constr
+from pydantic import BaseModel, constr, field_validator
 
 from app.errors import problem_response
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="SecDev Course App", version="0.1.0")
 
@@ -56,6 +59,34 @@ async def request_validation_handler(request: Request, exc: RequestValidationErr
         type_="about:blank",
         code="validation_error",
         extra={"details": exc.errors()},
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Глобальный обработчик всех необработанных исключений.
+
+    Гарантирует, что stack trace никогда не попадёт в ответ пользователю,
+    но полная информация логируется для разработчиков.
+    """
+    # Логируем полную информацию об ошибке (для разработчиков)
+    logger.error(
+        f"Unhandled exception: {type(exc).__name__}: {exc}",
+        exc_info=True,
+        extra={
+            "path": str(request.url),
+            "method": request.method,
+        },
+    )
+
+    # Возвращаем безопасный ответ без внутренних деталей
+    return problem_response(
+        request=request,
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        title="Internal server error",
+        detail="An unexpected error occurred. Please try again later.",
+        type_="error:internal",
+        code="internal_error",
     )
 
 
@@ -170,10 +201,23 @@ deck_service = DeckService(deck_repo=deck_repo)
 
 
 class DeckCreatePayload(BaseModel):
+    """Схема для создания колоды с строгой валидацией входных данных."""
+
+    model_config = {"extra": "forbid"}  # Запрещаем лишние поля
+
     title: constr(min_length=1, max_length=100)
     description: Optional[constr(max_length=500)] = None
-    source_lang: constr(min_length=2, max_length=8)
-    target_lang: constr(min_length=2, max_length=8)
+    source_lang: constr(min_length=2, max_length=2)
+    target_lang: constr(min_length=2, max_length=2)
+
+    @field_validator("source_lang", "target_lang")
+    @classmethod
+    def validate_language_code(cls, v: str) -> str:
+        """Проверяет, что код языка состоит из 2 символов (ISO 639-1)."""
+        v_lower = v.lower().strip()
+        if len(v_lower) != 2:
+            raise ValueError("language code must be exactly 2 characters (ISO 639-1)")
+        return v_lower
 
 
 class DeckResponse(BaseModel):
