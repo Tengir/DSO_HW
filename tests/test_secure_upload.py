@@ -236,14 +236,11 @@ def test_secure_save_rejects_symlink_parent(tmp_path: Path):
     symlink_path = normal_dir / "link"
     symlink_path.symlink_to(target_dir, target_is_directory=True)
 
-    # Создаём поддиректорию через симлинк
-    subdir_via_symlink = symlink_path / "subdir"
-    subdir_via_symlink.mkdir()
-
-    # Попытка сохранить в эту поддиректорию должна быть отклонена,
-    # так как путь проходит через симлинк (secure_save проверяет родителей)
+    # Попытка сохранить в директорию, путь к которой проходит через симлинк
+    # должна быть отклонена (secure_save проверяет родителей root на симлинки)
+    # Передаём путь через симлинк напрямую, без создания поддиректории
     with pytest.raises(SecureUploadError, match="symlink"):
-        secure_save(subdir_via_symlink, png_data)
+        secure_save(symlink_path, png_data)
 
     # Проверяем, что сохранение в нормальную директорию работает
     safe_dir = tmp_path / "safe"

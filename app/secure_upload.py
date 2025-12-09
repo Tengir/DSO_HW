@@ -131,6 +131,21 @@ def secure_save(root: Path, data: bytes, max_size: int = MAX_FILE_SIZE) -> Path:
     }
     ext = ext_map.get(detected_type, ".bin")
 
+    # Проверка симлинков в пути root ДО разрешения (resolve разрешает симлинки)
+    original_root = root
+    # Проверяем, что сам root не является симлинком
+    if original_root.is_symlink():
+        raise SecureUploadError("symlink detected in parent path")
+    # Проверяем все родительские директории на наличие симлинков
+    # Важно: проверяем ДО resolve(), так как resolve() разрешает симлинки
+    for parent in original_root.parents:
+        try:
+            if parent.is_symlink():
+                raise SecureUploadError("symlink detected in parent path")
+        except (OSError, ValueError):
+            # Игнорируем ошибки при проверке несуществующих путей
+            continue
+
     # Канонизация пути
     root = root.resolve(strict=True)
     if not root.is_dir():
@@ -146,7 +161,7 @@ def secure_save(root: Path, data: bytes, max_size: int = MAX_FILE_SIZE) -> Path:
     except ValueError:
         raise SecureUploadError("path traversal detected")
 
-    # Проверка симлинков в родительских директориях
+    # Проверка симлинков в родительских директориях target_path
     # Проверяем все родительские директории до root включительно
     for parent in target_path.parents:
         if parent.is_symlink():
