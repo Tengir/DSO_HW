@@ -5,10 +5,6 @@ from dataclasses import dataclass, field
 from typing import Tuple
 
 
-class ConfigError(Exception):
-    """Ошибка конфигурации: критический секрет не задан в проде."""
-
-
 @dataclass
 class Settings:
     """Простые настройки приложения, читаемые из переменных окружения.
@@ -29,19 +25,6 @@ class Settings:
         "text/csv",
         "application/json",
     )
-
-    def __post_init__(self):
-        """Проверяет, что в проде критичные секреты заданы через env (fail-fast)."""
-        env = os.getenv("APP_ENV", "development").lower()
-        is_production = env in ("production", "prod")
-
-        if is_production:
-            # В проде секретный ключ должен быть задан явно, не дефолтный
-            if self.secret_key == "dev-secret-key":
-                raise ConfigError(
-                    "APP_SECRET_KEY must be set in production environment. "
-                    "Do not use default dev-secret-key in production."
-                )
 
 
 settings = Settings()
