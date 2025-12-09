@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, constr
+from pydantic import BaseModel, ConfigDict, constr
 
 from app.errors import problem_response
 
@@ -148,7 +148,8 @@ class DeckService:
         self._deck_repo = deck_repo
 
     def create_deck(self, owner: User, payload: "DeckCreatePayload") -> Deck:
-        now = datetime.utcnow()
+        # Нормализация UTC: используем timezone-aware datetime
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         deck = Deck(
             id=str(uuid4()),
             owner_id=owner.id,
@@ -170,6 +171,8 @@ deck_service = DeckService(deck_repo=deck_repo)
 
 
 class DeckCreatePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     title: constr(min_length=1, max_length=100)
     description: Optional[constr(max_length=500)] = None
     source_lang: constr(min_length=2, max_length=8)

@@ -26,5 +26,19 @@ class Settings:
         "application/json",
     )
 
+    def __repr__(self) -> str:
+        """Маскирует секреты в строковом представлении."""
+        return (
+            f"Settings("
+            f"secret_key='***', "
+            f"max_upload_size_bytes={self.max_upload_size_bytes}, "
+            f"allowed_upload_content_types={self.allowed_upload_content_types}"
+            f")"
+        )
+
+    def __str__(self) -> str:
+        """Маскирует секреты в строковом представлении."""
+        return self.__repr__()
+
 
 settings = Settings()
