@@ -20,7 +20,7 @@ split_on_trailing_comma = true
 
 [tool.bandit]
 exclude_dirs = [".venv", "venv", "build", "dist", "tests"]
-skips = ["B101", "B105"]  # B101: assert_used (тесты), B105: hardcoded_password_string (ложное срабатывание в паттерне маскирования)
+# skips = ["B101", "B105"]  # B101: assert_used (тесты), B105: hardcoded_password_string (ложное срабатывание в паттерне маскирования)
 
 [tool.coverage.run]
 source = ["app"]

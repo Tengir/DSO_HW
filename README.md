@@ -48,6 +48,33 @@ CI выполняет следующие проверки:
 
 Badge добавится автоматически после загрузки шаблона в GitHub.
 
+## Контейнеризация (P07)
+
+Сборка образа:
+```
+docker build -t dso-app:local .
+```
+
+Запуск контейнера:
+```
+docker run --rm -p 8000:8000 dso-app:local
+```
+
+Запуск через compose:
+```
+docker compose -f docker-compose.yml up --build
+```
+
+Проверка healthcheck:
+```
+curl http://localhost:8000/health
+```
+
+Линтер Dockerfile (hadolint):
+```
+docker run --rm -i hadolint/hadolint < Dockerfile
+```
+
 ## Запуск приложения
 
 На данном этапе приложение не реализовано.
