@@ -20,6 +20,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Hadolint (Dockerfile)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          config: .hadolint.yaml
+          output-file: hadolint-report.txt
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -49,6 +56,37 @@ jobs:
         run: |
           coverage report --fail-under=80
           coverage xml
+
+      - name: Build container image
+        run: docker build -t dso-app:ci .
+
+      - name: Check container user is non-root
+        run: |
+          uid=$(docker run --rm dso-app:ci id -u)
+          if [ "$uid" -eq 0 ]; then
+            echo "Container runs as root (uid=0)"
+            exit 1
+          fi
+          echo "Container user uid=$uid"
+
+      - name: Trivy scan (image)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: dso-app:ci
+          format: table
+          output: trivy-report.txt
+          exit-code: "0"
+          severity: "HIGH,CRITICAL"
+          vuln-type: "os,library"
+          ignore-unfixed: true
+
+      - name: Upload container scan reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-security-reports
+          path: |
+            hadolint-report.txt
+            trivy-report.txt
 
       - name: Pre-commit (all files)
         run: pre-commit run --all-files
