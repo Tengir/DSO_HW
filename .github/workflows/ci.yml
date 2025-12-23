@@ -36,8 +36,19 @@ jobs:
           black --check .
           isort --check-only .
 
-      - name: Tests
-        run: pytest -q
+      - name: Security check (bandit)
+        run: |
+          bandit -r app/ -f json -o bandit-report.json || true
+          bandit -r app/ -ll
+
+      - name: Tests with coverage
+        run: |
+          pytest --cov=app --cov-report=term-missing --cov-report=xml -q
+
+      - name: Coverage check
+        run: |
+          coverage report --fail-under=80
+          coverage xml
 
       - name: Pre-commit (all files)
         run: pre-commit run --all-files

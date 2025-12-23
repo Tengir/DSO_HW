@@ -32,3 +32,18 @@ def test_create_deck_validation_error():
     assert response.status_code == 422
     body = response.json()
     assert body["error"]["code"] == "validation_error"
+
+
+def test_create_deck_rejects_extra_fields():
+    """Проверка отклонения лишних полей (extra='forbid')."""
+    payload = {
+        "title": "My deck",
+        "description": "Test",
+        "source_lang": "en",
+        "target_lang": "ru",
+        "extra_field": "should be rejected",
+    }
+    response = client.post("/api/v1/decks", json=payload)
+    assert response.status_code == 422
+    body = response.json()
+    assert body["error"]["code"] == "validation_error"
