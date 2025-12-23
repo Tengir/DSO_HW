@@ -51,12 +51,6 @@ jobs:
           bandit -r app/ -f json -o bandit-report.json || true
           bandit -r app/ -ll
 
-      - name: Check CI secret is set
-        env:
-          CI_DUMMY_TOKEN: ${{ secrets.CI_DUMMY_TOKEN }}
-        run: |
-          test -n "$CI_DUMMY_TOKEN"
-
       - name: Tests with coverage
         run: |
           mkdir -p reports
@@ -85,5 +79,11 @@ jobs:
     if: github.ref == 'refs/heads/main'
     environment: staging
     steps:
+      - name: Check CI secret is set
+        env:
+          CI_DUMMY_TOKEN: ${{ secrets.CI_DUMMY_TOKEN }}
+        run: |
+          test -n "$CI_DUMMY_TOKEN"
+
       - name: Deploy (dry-run)
         run: echo "Deploy to staging (dry-run)"
