@@ -1,6 +1,7 @@
 .git
 .gitignore
 .gitattributes
+.github/
 __pycache__/
 *.pyc
 *.pyo
@@ -15,3 +16,7 @@ build/
 htmlcov/
 node_modules/
 .env
+coverage.xml
+docs/
+project-local/
+tests/
