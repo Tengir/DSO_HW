@@ -1,3 +1,4 @@
+version: "3.9"
 services:
   app:
     build: .
@@ -6,7 +7,6 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - APP_ENV=${APP_ENV:-dev}
-    profiles: ["dev"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()"]
       interval: 30s
