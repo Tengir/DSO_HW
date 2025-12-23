@@ -34,7 +34,7 @@ def mask_pii(text: str) -> str:
     text = re.sub(jwt_pattern, lambda m: f"{m.group(1) or ''}***", text)
 
     # Маскирование паролей в строках вида password=xxx
-    password_pattern = r"(password|pwd|secret|token)\s*[=:]\s*[^\s&]+"
+    password_pattern = r"(password|pwd|secret|token)\s*[=:]\s*[^\s&]+"  # nosec B105
     text = re.sub(password_pattern, r"\1=***", text, flags=re.IGNORECASE)
 
     return text
