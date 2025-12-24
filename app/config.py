@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Tuple
+from typing import List, Tuple
 
 
 @dataclass
@@ -15,6 +15,16 @@ class Settings:
 
     secret_key: str = field(
         default_factory=lambda: os.getenv("APP_SECRET_KEY", "dev-secret-key")
+    )
+    admin_email: str = field(default_factory=lambda: os.getenv("APP_ADMIN_EMAIL", ""))
+    cors_origins: List[str] = field(
+        default_factory=lambda: [
+            origin.strip()
+            for origin in os.getenv("APP_CORS_ORIGINS", "http://localhost:3000").split(
+                ","
+            )
+            if origin.strip()
+        ]
     )
     max_upload_size_bytes: int = field(
         default_factory=lambda: int(
@@ -31,6 +41,8 @@ class Settings:
         return (
             f"Settings("
             f"secret_key='***', "
+            f"admin_email='***', "
+            f"cors_origins={self.cors_origins}, "
             f"max_upload_size_bytes={self.max_upload_size_bytes}, "
             f"allowed_upload_content_types={self.allowed_upload_content_types}"
             f")"
