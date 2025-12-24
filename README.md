@@ -1,10 +1,7 @@
 # DSO Course Project
 
 Этот репозиторий используется для выполнения практических заданий по курсу безопасной разработки ПО.
-Мы реализуем сервис интервальных повторений “Learning Flashcards”: пользователи создают колоды, карточки и проходят SRS-сессии с owner-only доступом и современным планировщиком.
-Базовые сущности из задания (User, Deck, Note, Card, UserCardState, ReviewLog) мы расширили до более детализированных классов: добавили `CardTemplate` для гибких представлений, `SrsConfig` как описатель алгоритма, `ReviewSession` и `StatisticsSnapshot` для аналитики, `MediaAsset` и `SyncState` под работу с медиа и многими устройствами. Это остаётся совместимо с исходным списком, но заранее готовит проект к продвинутым возможностям.
-Мне очень нравится концепция “лучшего аналога Anki”, поэтому хочу постепенно внедрять и дополнительный функционал (AI-генерация, мощный поиск, публичные колоды), а архитектура уже на это рассчитана.
-Функциональная часть приложения будет добавляться по мере выполнения заданий.
+Мы реализуем сервис интервальных повторений “Learning Flashcards”. Сейчас фокус на MVP по требованиям курса: регистрация, логин, роли и CRUD по колодам с owner-only доступом.
 
 ## Установка
 
@@ -77,13 +74,55 @@ docker run --rm -i hadolint/hadolint < Dockerfile
 
 ## Запуск приложения
 
-На данном этапе приложение не реализовано.
-По мере выполнения практик точка входа будет добавлена.
-
-Предполагаемый формат запуска:
+Минимальный MVP уже реализован. Запуск локально:
 
 ```
-python -m app
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+### Настройки (env)
+
+```
+APP_ADMIN_EMAIL=admin@example.com
+APP_CORS_ORIGINS=http://localhost:3000
+```
+
+### Быстрый пример (auth + колоды)
+
+1) Регистрация:
+```
+curl -X POST http://127.0.0.1:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"Password123","locale":"ru","proficiency_level":"b1"}'
+```
+
+2) Логин (получить токен):
+```
+curl -X POST http://127.0.0.1:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"Password123"}'
+```
+
+3) Создать колоду:
+```
+curl -X POST http://127.0.0.1:8000/api/v1/decks \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"My deck","description":"Basics","source_lang":"en","target_lang":"ru"}'
+```
+
+Если email совпадает с `APP_ADMIN_EMAIL`, пользователь регистрируется с ролью `admin`.
+
+### API docs
+
+Swagger UI:
+```
+http://127.0.0.1:8000/docs
+```
+
+ReDoc:
+```
+http://127.0.0.1:8000/redoc
 ```
 
 ## Тесты
@@ -155,11 +194,18 @@ bandit -r app/ -f json -o bandit-report.json
 
 ```
 app/                    исходный код приложения
-  ├── main.py          FastAPI приложение, endpoints, доменные модели
+  ├── main.py          FastAPI приложение, endpoints
+  ├── schemas.py       Pydantic-схемы API
+  ├── domain/          доменные модели
+  ├── services/        бизнес-логика (use-cases)
+  ├── adapters/        репозитории (in-memory)
+  ├── shared/          общие утилиты/ошибки
   ├── config.py        Конфигурация (секреты, настройки)
   ├── errors.py        Обработка ошибок (RFC 7807, correlation_id, маскирование PII)
   └── secure_upload.py Безопасная загрузка файлов (magic bytes, path traversal защита)
 tests/                  тесты
+  ├── test_auth.py            тесты регистрации/логина
+  ├── test_decks.py           тесты CRUD и owner-only
   ├── test_secure_upload.py    тесты безопасной загрузки файлов
   ├── test_rfc7807_errors.py   тесты формата ошибок
   ├── test_errors.py           тесты валидации и ошибок

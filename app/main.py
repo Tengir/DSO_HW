@@ -1,24 +1,52 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Dict, List, Optional
+import json
+import logging
+import time
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Security, status
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, ConfigDict, constr
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.adapters.repositories import (
+    InMemoryDeckRepository,
+    SessionStore,
+    UserRepository,
+)
+from app.config import settings
+from app.domain.models import Deck, User
 from app.errors import problem_response
+from app.schemas import (
+    DeckCreatePayload,
+    DeckEnvelope,
+    DeckListEnvelope,
+    DeckListResponse,
+    DeckUpdatePayload,
+    LoginPayload,
+    RegisterPayload,
+    TokenResponse,
+    UserEnvelope,
+    UserResponse,
+    deck_to_response,
+)
+from app.services.auth import AuthService
+from app.services.decks import DeckService
+from app.shared.errors import ApiError
 
 app = FastAPI(title="SecDev Course App", version="0.1.0")
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("app")
 
-class ApiError(Exception):
-    def __init__(self, code: str, message: str, status: int = 400):
-        self.code = code
-        self.message = message
-        self.status = status
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.exception_handler(ApiError)
@@ -64,161 +92,99 @@ def health():
     return {"status": "ok"}
 
 
-# --- Domain layer (simplified for the initial slice) ---
-
-
-@dataclass(frozen=True)
-class User:
-    id: str
-    email: str
-    role: str
-    locale: str
-    proficiency_level: str
-
-
-@dataclass(frozen=True)
-class Deck:
-    id: str
-    owner_id: str
-    title: str
-    description: Optional[str]
-    source_lang: str
-    target_lang: str
-    created_at: datetime
-    updated_at: datetime
-
-
-@dataclass(frozen=True)
-class Note:
-    id: str
-    deck_id: str
-    fields: Dict[str, str]
-    tags: List[str] = field(default_factory=list)
-    media_refs: List[str] = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
-
-
-@dataclass(frozen=True)
-class Card:
-    id: str
-    note_id: str
-    deck_id: str
-    card_type: str
-    template_id: str
-    created_at: datetime
-
-
-@dataclass(frozen=True)
-class UserCardState:
-    id: str
-    user_id: str
-    card_id: str
-    status: str
-    stability: float
-    retrievability: float
-    ease_factor: float
-    interval: int
-    next_review_at: Optional[datetime]
-    last_review_at: Optional[datetime]
-    review_count: int
-    success_count: int
-    lapses_count: int
-
-
-# --- Repository and service layer ---
-
-
-class DeckRepository:
-    def save(self, deck: Deck) -> Deck:
-        raise NotImplementedError
-
-
-class InMemoryDeckRepository(DeckRepository):
-    def __init__(self):
-        self._storage: Dict[str, Deck] = {}
-
-    def save(self, deck: Deck) -> Deck:
-        self._storage[deck.id] = deck
-        return deck
-
-
-class DeckService:
-    def __init__(self, deck_repo: DeckRepository):
-        self._deck_repo = deck_repo
-
-    def create_deck(self, owner: User, payload: "DeckCreatePayload") -> Deck:
-        # Нормализация UTC: используем timezone-aware datetime
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        deck = Deck(
-            id=str(uuid4()),
-            owner_id=owner.id,
-            title=payload.title.strip(),
-            description=payload.description.strip() if payload.description else None,
-            source_lang=payload.source_lang.lower(),
-            target_lang=payload.target_lang.lower(),
-            created_at=now,
-            updated_at=now,
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-Id", str(uuid4()))
+    started = time.time()
+    response = await call_next(request)
+    duration_ms = int((time.time() - started) * 1000)
+    response.headers["X-Request-Id"] = request_id
+    logger.info(
+        json.dumps(
+            {
+                "ts": time.time(),
+                "level": "INFO",
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status": response.status_code,
+                "duration_ms": duration_ms,
+            }
         )
-        return self._deck_repo.save(deck)
+    )
+    return response
 
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+user_repo = UserRepository()
+session_store = SessionStore()
+auth_service = AuthService(user_repo=user_repo, sessions=session_store)
 
 deck_repo = InMemoryDeckRepository()
 deck_service = DeckService(deck_repo=deck_repo)
 
-
-# --- Schemas and dependencies ---
-
-
-class DeckCreatePayload(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    title: constr(min_length=1, max_length=100)
-    description: Optional[constr(max_length=500)] = None
-    source_lang: constr(min_length=2, max_length=8)
-    target_lang: constr(min_length=2, max_length=8)
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
-class DeckResponse(BaseModel):
-    id: str
-    owner_id: str
-    title: str
-    description: Optional[str] = None
-    source_lang: str
-    target_lang: str
-    created_at: datetime
-    updated_at: datetime
+def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+) -> User:
+    auth_header = request.headers.get("Authorization")
+    token = None
+    if credentials is not None:
+        token = credentials.credentials
+    elif auth_header and auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        raise ApiError(code="unauthorized", message="missing bearer token", status=401)
+    return auth_service.get_user_by_token(token)
 
 
-class DeckEnvelope(BaseModel):
-    deck: DeckResponse
+def assert_owner_or_admin(user: User, deck: Deck) -> None:
+    if user.role != "admin" and deck.owner_id != user.id:
+        raise ApiError(code="forbidden", message="not your deck", status=403)
 
 
-def deck_to_response(deck: Deck) -> DeckResponse:
-    return DeckResponse(
-        id=deck.id,
-        owner_id=deck.owner_id,
-        title=deck.title,
-        description=deck.description,
-        source_lang=deck.source_lang,
-        target_lang=deck.target_lang,
-        created_at=deck.created_at,
-        updated_at=deck.updated_at,
+@app.post(
+    "/api/v1/auth/register",
+    status_code=status.HTTP_201_CREATED,
+    response_model=UserEnvelope,
+)
+def register_endpoint(payload: RegisterPayload):
+    role = "user"
+    if settings.admin_email and payload.email.lower() == settings.admin_email.lower():
+        role = "admin"
+    record = auth_service.register_user(
+        email=payload.email,
+        password=payload.password,
+        locale=payload.locale,
+        proficiency_level=payload.proficiency_level,
+        role=role,
+    )
+    return UserEnvelope(
+        user=UserResponse(
+            id=record.id,
+            email=record.email,
+            role=record.role,
+            locale=record.locale,
+            proficiency_level=record.proficiency_level,
+        )
     )
 
 
-def get_current_user() -> User:
-    # In a real app this would validate a JWT/session.
-    return User(
-        id="00000000-0000-0000-0000-000000000001",
-        email="student@example.com",
-        role="user",
-        locale="ru",
-        proficiency_level="b1",
-    )
-
-
-# --- API layer ---
+@app.post("/api/v1/auth/login", response_model=TokenResponse)
+def login_endpoint(payload: LoginPayload):
+    token = auth_service.authenticate(email=payload.email, password=payload.password)
+    return TokenResponse(access_token=token)
 
 
 @app.post(
@@ -231,3 +197,52 @@ def create_deck_endpoint(
 ):
     deck = deck_service.create_deck(owner=current_user, payload=payload)
     return DeckEnvelope(deck=deck_to_response(deck))
+
+
+@app.get("/api/v1/decks", response_model=DeckListEnvelope)
+def list_decks_endpoint(
+    limit: int = 20,
+    offset: int = 0,
+    current_user: User = Depends(get_current_user),
+):
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
+    decks = deck_service.list_decks()
+    if current_user.role != "admin":
+        decks = [deck for deck in decks if deck.owner_id == current_user.id]
+    total = len(decks)
+    items = decks[offset : offset + limit]
+    return DeckListEnvelope(
+        decks=DeckListResponse(
+            items=[deck_to_response(deck) for deck in items],
+            limit=limit,
+            offset=offset,
+            total=total,
+        )
+    )
+
+
+@app.get("/api/v1/decks/{deck_id}", response_model=DeckEnvelope)
+def get_deck_endpoint(deck_id: str, current_user: User = Depends(get_current_user)):
+    deck = deck_service.get_deck(deck_id)
+    assert_owner_or_admin(current_user, deck)
+    return DeckEnvelope(deck=deck_to_response(deck))
+
+
+@app.patch("/api/v1/decks/{deck_id}", response_model=DeckEnvelope)
+def update_deck_endpoint(
+    deck_id: str,
+    payload: DeckUpdatePayload,
+    current_user: User = Depends(get_current_user),
+):
+    deck = deck_service.get_deck(deck_id)
+    assert_owner_or_admin(current_user, deck)
+    updated = deck_service.update_deck(deck, payload)
+    return DeckEnvelope(deck=deck_to_response(updated))
+
+
+@app.delete("/api/v1/decks/{deck_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_deck_endpoint(deck_id: str, current_user: User = Depends(get_current_user)):
+    deck = deck_service.get_deck(deck_id)
+    assert_owner_or_admin(current_user, deck)
+    deck_service.delete_deck(deck_id)
