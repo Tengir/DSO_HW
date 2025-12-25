@@ -1,0 +1,8 @@
+# Basic Checkov config for course project.
+quiet: false
+compact: true
+framework:
+  - dockerfile
+  - kubernetes
+  - terraform
+skip-check: []
