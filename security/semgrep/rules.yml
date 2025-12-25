@@ -1,0 +1,16 @@
+rules:
+  - id: python.no-eval
+    message: "Avoid eval(); it can lead to code execution vulnerabilities."
+    severity: WARNING
+    languages:
+      - python
+    patterns:
+      - pattern: eval(...)
+
+  - id: python.subprocess-shell-true
+    message: "Avoid subprocess with shell=True; it may allow command injection."
+    severity: WARNING
+    languages:
+      - python
+    patterns:
+      - pattern: subprocess.$FUNC(..., shell=True, ...)
