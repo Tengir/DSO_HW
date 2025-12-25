@@ -7,7 +7,9 @@ useDefault = true
 description = "Allow dev-only placeholders and config defaults"
 paths = [
   "app/config.py",
+  "tests/",
 ]
 regexes = [
   "dev-secret-key",
+  "Password123",
 ]
