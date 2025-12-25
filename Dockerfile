@@ -4,8 +4,8 @@ FROM python:3.11.9-slim AS build
 WORKDIR /app
 COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache \
-    pip install --upgrade pip && \
-    pip wheel --wheel-dir=/wheels -r requirements.txt
+    pip install --no-cache-dir --upgrade pip==24.2 && \
+    pip wheel --no-cache-dir --wheel-dir=/wheels -r requirements.txt
 
 FROM python:3.11.9-slim AS runtime
 ENV PYTHONUNBUFFERED=1 \
