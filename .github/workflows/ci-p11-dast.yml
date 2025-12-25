@@ -56,7 +56,7 @@ jobs:
 
       - name: ZAP baseline
         run: |
-          docker run --rm -v $PWD:/zap/wrk -t owasp/zap2docker-stable \
+          docker run --rm -v $PWD:/zap/wrk -t ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py -t http://localhost:8080/ \
             -r zap_baseline.html -J zap_baseline.json -m 2 || true
           mv zap_baseline.html EVIDENCE/P11/zap_baseline.html
