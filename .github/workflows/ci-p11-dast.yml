@@ -57,9 +57,9 @@ jobs:
       - name: ZAP baseline
         run: |
           docker run --rm --network=host -u 0 -v $PWD:/zap/wrk -t ghcr.io/zaproxy/zaproxy:stable \
-            zap-baseline.py -t http://127.0.0.1:8080/ \
-            -r /zap/wrk/EVIDENCE/P11/zap_baseline.html \
-            -J /zap/wrk/EVIDENCE/P11/zap_baseline.json -m 2 || true
+            zap-baseline.py -t http://127.0.0.1:8080/docs \
+            -r EVIDENCE/P11/zap_baseline.html \
+            -J EVIDENCE/P11/zap_baseline.json -m 2 || true
 
       - name: Upload ZAP evidence
         if: always()
