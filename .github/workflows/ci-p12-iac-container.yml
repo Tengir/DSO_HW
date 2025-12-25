@@ -54,7 +54,7 @@ jobs:
 
       - name: Trivy image scan
         run: |
-          docker run --rm -v $PWD:/work aquasec/trivy \
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v $PWD:/work aquasec/trivy \
             image --config /work/security/trivy.yaml \
             --output /work/EVIDENCE/P12/trivy_report.json app:local || true
 
